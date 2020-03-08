@@ -38,10 +38,11 @@ int max_lane_num = 2; // On this highway, there are lanes 3 lanes, [0,1,2]
 double lane_width = 4.0; // Width of highway lane in meters
 
 double speed_limit_mph = 50; // Speed limit in MPH
-double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
-double speed_limit_buffer = mph_to_m_s(1); // Buffer to ensure we do not accidentally exceed speed limit
+// double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
+double speed_limit = 50;
+double speed_limit_buffer = 1; // Buffer to ensure we do not accidentally exceed speed limit
 double desired_speed = speed_limit - speed_limit_buffer;
-double max_acceleration = 0.2; // Do not accelerate too fast to try minimize jerk
+double max_acceleration = 1.75; // Do not accelerate too fast to try minimize jerk
 
 double safe_lane_change_dist = 30; // Distance away in meters cars in other lane should be to safely change lane
 
@@ -72,11 +73,11 @@ double stay_in_lane_cost(double car_front_dist){
 double slow_down_cost(double car_front_dist, double current_speed){
   double cost = slow_down_default_cost;
 
-  if (current_speed > speed_limit || car_front_dist < 5){
+  if (current_speed > speed_limit || car_front_dist < 15){
     cost = 0;
   }
 
-  else if (car_front_dist < 10){
+  else if (car_front_dist < 20){
     cost *= 0.5;
   }
   else if (current_speed > desired_speed){
@@ -99,7 +100,7 @@ double slow_down_cost(double car_front_dist, double current_speed){
 double turn_left_cost(bool car_on_left, double car_left_front_dist, int current_lane){
   double cost = max_cost;
 
-  if (current_lane != 0 || car_on_left == false){
+  if (current_lane != 0 && car_on_left == false){
 
     cost -= car_left_front_dist / (2 * safe_lane_change_dist);
     // cost *= safe_lane_change_dist /2 / car_left_front_dist);
@@ -119,7 +120,7 @@ double turn_left_cost(bool car_on_left, double car_left_front_dist, int current_
 double turn_right_cost(bool car_on_right, double car_right_front_dist, int current_lane){
   double cost = max_cost;
 
-  if (current_lane != max_lane_num || car_on_right == false){
+  if (current_lane != max_lane_num && car_on_right == false){
     cost -= car_right_front_dist / (2 * safe_lane_change_dist);
 
     // Ensure cost never goes below turning_min_cost
@@ -210,10 +211,10 @@ int main() {
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
 
-          json msgJson;
+          //json msgJson;
 
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          //vector<double> next_x_vals;
+          //vector<double> next_y_vals;
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
@@ -254,6 +255,10 @@ int main() {
            ////////////////////
            //  Make Decision
            ////////////////////
+           std::cout << std::endl;
+
+           std::cout << "Current Lane: " << current_lane << std::endl;
+
 
            if (prev_size > 0){
              car_s = end_path_s;
@@ -263,7 +268,7 @@ int main() {
              auto car_i_data = sensor_fusion[i];
              double car_i_s = car_i_data[5];
              double car_i_d = car_i_data[6];
-             double car_i_lane_num = car_i_s / lane_width;
+             int car_i_lane_num = car_i_d / lane_width;
              double dist_from_car_i = car_i_s - car_s;
              bool car_i_in_front = false;
 
@@ -275,21 +280,29 @@ int main() {
                car_front_dist = dist_from_car_i;
              }
 
-             if (car_i_lane_num == current_lane - 1){
+             if (car_i_lane_num == current_lane - 1){ // Car is in lane to left of us
                if (abs(dist_from_car_i) < safe_lane_change_dist){
                  car_on_left = true;
                }
                if (car_i_in_front && dist_from_car_i < car_left_front_dist) {
                  car_left_front_dist = dist_from_car_i;
                }
+               if (car_i_d > car_i_lane_num * lane_width + lane_width * 0.75 && dist_from_car_i < car_front_dist){ // Car in left lane is trying to merge into our lane
+                car_front_dist = dist_from_car_i;
+
+               }
              }
 
-             if (car_i_lane_num == current_lane + 1){
+             if (car_i_lane_num == current_lane + 1){ // Car is in lane to right of us
                if (abs(dist_from_car_i) < safe_lane_change_dist){
                  car_on_right = true;
                }
                if (car_i_in_front && dist_from_car_i < car_right_front_dist) {
                  car_right_front_dist = dist_from_car_i;
+               }
+               if (car_i_d < car_i_lane_num * lane_width + lane_width * 0.25 && dist_from_car_i < car_front_dist){ // Car in right lane is trying to merge into our lane
+                car_front_dist = dist_from_car_i;
+
                }
              }
 
@@ -314,6 +327,8 @@ int main() {
            std::cout << cost_vector[3] << std::endl;
            std::cout << std::endl;
 
+           double prev_decision = decision;
+
            for (int i = 0; i < cost_vector.size(); ++i) {
              double i_cost = cost_vector[i];
              if (i_cost < min_cost) {
@@ -328,6 +343,13 @@ int main() {
              desired_lane = current_lane;
              if (car_speed < desired_speed){ // Increase speed if not going at desired speed
                speed_diff += max_acceleration;
+               if (speed_diff + car_speed > desired_speed){
+                 speed_diff = desired_speed - car_speed;
+               }
+
+               if (prev_decision == 1){
+                 speed_diff /= 2;
+               }
                std::cout << "Increasing Speed..." << std::endl;
              }
            }
@@ -335,6 +357,9 @@ int main() {
            else if (decision == 1) { // Slow Down
               speed_diff -= max_acceleration;
               std::cout << "Decreasing Speed..." << std::endl;
+              if (prev_decision == 0){
+                 speed_diff /= 2;
+               }
            }
 
            else if (decision == 2) { // Turn Left
@@ -342,7 +367,7 @@ int main() {
               std::cout << "Attempting Left Turn..." << std::endl;
            }
 
-           else if (decision == 2) { // Turn Right
+           else if (decision == 3) { // Turn Right
               desired_lane = current_lane + 1;
               std::cout << "Attempting Right Turn..." << std::endl;
            }
@@ -504,11 +529,11 @@ int main() {
           }
 
           // Setting up three target points in the future.
-          vector<double> next_wp0 = getXY(car_s + 30, 2 + 4 * lane, map_waypoints_s, map_waypoints_x,
+          vector<double> next_wp0 = getXY(car_s + 30, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
                                           map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 60, 2 + 4 * lane, map_waypoints_s, map_waypoints_x,
+          vector<double> next_wp1 = getXY(car_s + 60, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
                                           map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 90, 2 + 4 * lane, map_waypoints_s, map_waypoints_x,
+          vector<double> next_wp2 = getXY(car_s + 90, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
                                           map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
@@ -547,13 +572,9 @@ int main() {
 
           double x_add_on = 0;
 
+          double ref_vel = car_speed + speed_diff;
+
           for (int i = 1; i < 50 - prev_size; i++) {
-              ref_vel += speed_diff;
-              if (ref_vel > MAX_SPEED) {// dont exceed the maximum speed
-                  ref_vel = MAX_SPEED;
-              } else if (ref_vel < MAX_ACC) {
-                  ref_vel = MAX_ACC;
-              }
               double N = target_dist / (0.02 * ref_vel / 2.24); // divided into N segments
               double x_point = x_add_on + target_x / N;
               double y_point = s(x_point); // To calculate distance y position .
