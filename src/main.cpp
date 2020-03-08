@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include <math.h>
 
 // for convenience
 using nlohmann::json;
@@ -223,11 +224,14 @@ int main() {
            //  Variables
            ////////////////////
 
+           int prev_size = previous_path_x.size();
+
            double delta_t = 0.02;
 
            tk::spline spline_path;
            vector<double> x_path_points, y_path_points;
 
+           double min_cost = 1;
            int decision = 0;
            // decision = 0 = Stay in same lane at max velocity
            // decision = 1 = Slow Down
@@ -247,11 +251,13 @@ int main() {
            bool car_on_right = false;
 
 
-
-
            ////////////////////
            //  Make Decision
            ////////////////////
+
+           if (prev_size > 0){
+             car_s = end_path_s;
+           }
 
            for (int i=0; i < sensor_fusion.size(); i++){ // Loop through each car in the simulation
              auto car_i_data = sensor_fusion[i];
@@ -295,7 +301,7 @@ int main() {
            cost_vector.push_back(turn_right_cost(car_on_right, car_right_front_dist, current_lane));
 
            std::cout << std::endl;
-           
+
            std::cout << "Car Front Dist: " << car_front_dist << std::endl;
            std::cout << "Car Front Left Dist: " << car_left_front_dist << std::endl;
            std::cout << "Car Front Right Dist: " << car_right_front_dist << std::endl;
@@ -308,23 +314,37 @@ int main() {
            std::cout << cost_vector[3] << std::endl;
            std::cout << std::endl;
 
+           for (int i = 0; i < cost_vector.size(); ++i) {
+             double i_cost = cost_vector[i];
+             if (i_cost < min_cost) {
+                min_cost = the_cost;
+                decision = i;
+              }
+            }
+
+            std::cout << "Decision: " << decision << std::endl;
+
            if (decision == 0) { // Continue straight in lane
              desired_lane = current_lane;
              if (car_speed < desired_speed){ // Increase speed if not going at desired speed
                speed_diff += max_acceleration;
+               std::cout << "Increasing Speed..." << std::endl;
              }
            }
 
            else if (decision == 1) { // Slow Down
               speed_diff -= max_acceleration;
+              std::cout << "Decreasing Speed..." << std::endl;
            }
 
            else if (decision == 2) { // Turn Left
-              desired_lane -= 1;
+              desired_lane = current_lane - 1;
+              std::cout << "Attempting Left Turn..." << std::endl;
            }
 
            else if (decision == 2) { // Turn Right
-              desired_lane += 1;
+              desired_lane = current_lane + 1;
+              std::cout << "Attempting Right Turn..." << std::endl;
            }
 
 
@@ -336,9 +356,9 @@ int main() {
 
            double ref_x = car_x;
            double ref_y = car_y;
-           double ref_yaw = car_yaw / 57.2958;
+           double ref_yaw = deg2rad(car_yaw);
 
-           int prev_size = previous_path_x.size();
+
 
            if (prev_size < 2){
              double prev_car_x = car_x - cos(car_yaw);
@@ -396,7 +416,7 @@ int main() {
            for (int j=0; j < points_y.size(); j++){
              std::cout << points_y[j] << std::endl;
            }
-          
+
            spline_path.set_points(points_x, points_y);
 
            // Any points generated previously, add them to the new list of points
@@ -431,7 +451,7 @@ int main() {
              next_y_vals.push_back(y_point);
 
            }
-          
+
            std::cout << "next_x: " << std::endl;
            for (int j=0; j < next_x_vals.size(); j++){
              std::cout << next_x_vals[j] << std::endl;
@@ -440,7 +460,7 @@ int main() {
            for (int j=0; j < next_y_vals.size(); j++){
              std::cout << points_y[j] << std::endl;
            }
-          
+
           //next_x_vals.clear();
           //next_y_vals.clear();
           //double dist_inc = 0.5;
