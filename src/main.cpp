@@ -61,14 +61,14 @@ double stay_in_lane_cost(double car_front_dist){
     cost *= 0.2;
   }
   else { // Increase cost as vehicle in front gets closer
-    double slope = 1.0 * (0.8 - 0) / (safe_lane_change*1.5 - 0);
+    double slope = 1.0 * (0.8 - 0) / (safe_lane_change_dist*1.5 - 0);
     double mapped_value = 0 + slope * (car_front_dist);
     cost *= 0.2 + (1 - mapped_value);
   }
   return cost;
 }
 
-double slow_down_cost(double car_front_dist){
+double slow_down_cost(double car_front_dist, double current_speed){
   double cost = slow_down_default_cost;
 
   if (current_speed > speed_limit || car_front_dist < 5){
@@ -76,7 +76,7 @@ double slow_down_cost(double car_front_dist){
   }
 
   else if (car_front_dist < 10){
-    cost *= 0.5
+    cost *= 0.5;
   }
   else if (current_speed > desired_speed){
     cost *= 0.3;
@@ -84,18 +84,18 @@ double slow_down_cost(double car_front_dist){
   return cost;
 }
 
-double speed_up_cost(double car_front_dist){
-  double cost = speed_up_default_cost;
+// double speed_up_cost(double car_front_dist){
+//   double cost = speed_up_default_cost;
 
-  if (current_speed < desired_speed && car_front_dist > safe_lane_change_dist){
-    cost = speed_up_default_cost * 0.3;
-  }
-  return cost;
+//   if (current_speed < desired_speed && car_front_dist > safe_lane_change_dist){
+//     cost = speed_up_default_cost * 0.3;
+//   }
+//   return cost;
 
-}
+// }
 
 
-double turn_left_cost(bool car_on_left, double car_left_front_dist){
+double turn_left_cost(bool car_on_left, double car_left_front_dist, int current_lane){
   double cost = max_cost;
 
   if (current_lane != 0 || car_on_left == false){
@@ -115,7 +115,7 @@ double turn_left_cost(bool car_on_left, double car_left_front_dist){
 
 }
 
-double turn_right_cost(bool car_on_right, double car_right_front_dist){
+double turn_right_cost(bool car_on_right, double car_right_front_dist, int current_lane){
   double cost = max_cost;
 
   if (current_lane != max_lane_num || car_on_right == false){
@@ -255,7 +255,7 @@ int main() {
 
            for (int i=0; i < sensor_fusion.size(); i++){ // Loop through each car in the simulation
              auto car_i_data = sensor_fusion[i];
-             double car_i_s = car_i_date[5];
+             double car_i_s = car_i_data[5];
              double car_i_d = car_i_data[6];
              double car_i_lane_num = car_i_s / lane_width;
              double dist_from_car_i = car_i_s - car_s;
@@ -290,13 +290,15 @@ int main() {
            }
 
            cost_vector.push_back(stay_in_lane_cost(car_front_dist));
-           cost_vector.push_back(slow_down_cost(car_front_dist));
-           cost_vector.push_back(turn_left_cost(car_on_left, car_left_front_dist));
-           cost_vector.push_back(turn_right_cost(car_on_right, car_right_front_dist));
+           cost_vector.push_back(slow_down_cost(car_front_dist, car_speed));
+           cost_vector.push_back(turn_left_cost(car_on_left, car_left_front_dist, current_lane));
+           cost_vector.push_back(turn_right_cost(car_on_right, car_right_front_dist, current_lane));
 
            std::cout << std::endl;
+           
            std::cout << "Car Front Dist: " << car_front_dist << std::endl;
            std::cout << "Car Front Left Dist: " << car_left_front_dist << std::endl;
+           std::cout << "Car Front Right Dist: " << car_right_front_dist << std::endl;
            std::cout << "Car On Left: " << car_on_left << std::endl;
            std::cout << "Car On Right: " << car_on_right << std::endl;
            std::cout << "Cost Function: " << std::endl;
@@ -334,7 +336,7 @@ int main() {
 
            double ref_x = car_x;
            double ref_y = car_y;
-           double ref_yaw = car_yaw;
+           double ref_yaw = car_yaw / 57.2958;
 
            int prev_size = previous_path_x.size();
 
@@ -351,8 +353,8 @@ int main() {
            }
 
            else{
-             ref_x = previous_path_x[prev_car_x - 1];
-             ref_y = previous_path_y[prev_car_y - 1];
+             ref_x = previous_path_x[prev_size - 1];
+             ref_y = previous_path_y[prev_size - 1];
 
              double ref_x_prev = previous_path_x[prev_size-2];
              double ref_y_prev = previous_path_y[prev_size-2];
@@ -366,8 +368,8 @@ int main() {
            }
 
            vector<double> next_wp0 = getXY(car_s+30, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-           vector<double> next_wp1 = getXY(car_s+45, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-           vector<double> next_wp2 = getXY(car_s+60, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
+           vector<double> next_wp1 = getXY(car_s+60, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
+           vector<double> next_wp2 = getXY(car_s+90, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
 
            points_x.push_back(next_wp0[0]);
            points_y.push_back(next_wp0[1]);
@@ -386,6 +388,15 @@ int main() {
 
            }
 
+           std::cout << "Points_x: " << std::endl;
+           for (int j=0; j < points_x.size(); j++){
+             std::cout << points_x[j] << std::endl;
+           }
+           std::cout << std::endl << "Points_y: " << std::endl;
+           for (int j=0; j < points_y.size(); j++){
+             std::cout << points_y[j] << std::endl;
+           }
+          
            spline_path.set_points(points_x, points_y);
 
            // Any points generated previously, add them to the new list of points
@@ -416,10 +427,27 @@ int main() {
              x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw)) + ref_x;
              y_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw)) + ref_x;
 
-             next_x_vals.push_back(x_points);
-             next_y_vals.push_back(y_points);
+             next_x_vals.push_back(x_point);
+             next_y_vals.push_back(y_point);
 
            }
+          
+           std::cout << "next_x: " << std::endl;
+           for (int j=0; j < next_x_vals.size(); j++){
+             std::cout << next_x_vals[j] << std::endl;
+           }
+           std::cout << std::endl << "next_y: " << std::endl;
+           for (int j=0; j < next_y_vals.size(); j++){
+             std::cout << points_y[j] << std::endl;
+           }
+          
+          //next_x_vals.clear();
+          //next_y_vals.clear();
+          //double dist_inc = 0.5;
+          //for (int i = 0; i < 50; ++i) {
+            //next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+            //next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+          //}
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
