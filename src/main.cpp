@@ -38,11 +38,11 @@ int max_lane_num = 2; // On this highway, there are lanes 3 lanes, [0,1,2]
 double lane_width = 4.0; // Width of highway lane in meters
 
 double speed_limit_mph = 50; // Speed limit in MPH
-// double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
-double speed_limit = 50;
-double speed_limit_buffer = 1; // Buffer to ensure we do not accidentally exceed speed limit
+double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
+// double speed_limit = 50;
+double speed_limit_buffer = mph_to_m_s(1); // Buffer to ensure we do not accidentally exceed speed limit
 double desired_speed = speed_limit - speed_limit_buffer;
-double max_acceleration = 1.75; // Do not accelerate too fast to try minimize jerk
+double max_speed_change = mph_to_m_s(1.6); // Do not accelerate too fast to try minimize jerk
 
 double safe_lane_change_dist = 30; // Distance away in meters cars in other lane should be to safely change lane
 
@@ -85,17 +85,6 @@ double slow_down_cost(double car_front_dist, double current_speed){
   }
   return cost;
 }
-
-// double speed_up_cost(double car_front_dist){
-//   double cost = speed_up_default_cost;
-
-//   if (current_speed < desired_speed && car_front_dist > safe_lane_change_dist){
-//     cost = speed_up_default_cost * 0.3;
-//   }
-//   return cost;
-
-// }
-
 
 double turn_left_cost(bool car_on_left, double car_left_front_dist, int current_lane){
   double cost = max_cost;
@@ -211,10 +200,7 @@ int main() {
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
 
-          //json msgJson;
-
-          //vector<double> next_x_vals;
-          //vector<double> next_y_vals;
+          json msgJson;
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
@@ -329,7 +315,7 @@ int main() {
 
            double prev_decision = decision;
 
-           for (int i = 0; i < cost_vector.size(); ++i) {
+           for (int i = 0; i < cost_vector.size(); ++i) { // Sort through the min cost in the vector to make decision
              double i_cost = cost_vector[i];
              if (i_cost < min_cost) {
                 min_cost = i_cost;
@@ -342,23 +328,23 @@ int main() {
            if (decision == 0) { // Continue straight in lane
              desired_lane = current_lane;
              if (car_speed < desired_speed){ // Increase speed if not going at desired speed
-               speed_diff += max_acceleration;
+               speed_diff += max_speed_change;
                if (speed_diff + car_speed > desired_speed){
                  speed_diff = desired_speed - car_speed;
                }
 
-               if (prev_decision == 1){
-                 speed_diff /= 2;
+               if (prev_decision == 1){ // If suddenly switching from slowing down to speeding up, do not accelerate too fast
+                 speed_diff /= 3;
                }
                std::cout << "Increasing Speed..." << std::endl;
              }
            }
 
            else if (decision == 1) { // Slow Down
-              speed_diff -= max_acceleration;
+              speed_diff -= max_speed_change;
               std::cout << "Decreasing Speed..." << std::endl;
-              if (prev_decision == 0){
-                 speed_diff /= 2;
+              if (prev_decision == 0){ // If suddenly switching from speeding up to slowing down, do not deaccelerate too fast
+                 speed_diff /= 3;
                }
            }
 
@@ -377,143 +363,27 @@ int main() {
            //  Generate Path Based Off Decision
            ////////////////////
 
-          //  vector<double> points_x, points_y;
-          //
-          //  double ref_x = car_x;
-          //  double ref_y = car_y;
-          //  double ref_yaw = deg2rad(car_yaw);
-          //
-          //
-          //
-          //  if (prev_size < 2){
-          //    double prev_car_x = car_x - cos(car_yaw);
-          //    double prev_car_y = car_y - sin(car_yaw);
-          //
-          //    points_x.push_back(prev_car_x);
-          //    points_y.push_back(prev_car_y);
-          //
-          //    points_x.push_back(car_x);
-          //    points_y.push_back(car_y);
-          //
-          //  }
-          //
-          //  else{
-          //    ref_x = previous_path_x[prev_size - 1];
-          //    ref_y = previous_path_y[prev_size - 1];
-          //
-          //    double ref_x_prev = previous_path_x[prev_size-2];
-          //    double ref_y_prev = previous_path_y[prev_size-2];
-          //    ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
-          //
-          //    points_x.push_back(ref_x_prev);
-          //    points_y.push_back(ref_y_prev);
-          //
-          //    points_x.push_back(ref_x);
-          //    points_y.push_back(ref_y);
-          //  }
-          //
-          //  vector<double> next_wp0 = getXY(car_s+30, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-          //  vector<double> next_wp1 = getXY(car_s+60, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-          //  vector<double> next_wp2 = getXY(car_s+90, ((desired_lane + 0.5)*lane_width), map_waypoints_s, map_waypoints_x, map_waypoints_y );
-          //
-          //  points_x.push_back(next_wp0[0]);
-          //  points_y.push_back(next_wp0[1]);
-          //  points_x.push_back(next_wp1[0]);
-          //  points_y.push_back(next_wp1[1]);
-          //  points_x.push_back(next_wp2[0]);
-          //  points_y.push_back(next_wp2[1]);
-          //
-          //  for (int i = 0; i < points_x.size(); i++){
-          //    // Localize car in it's own local coordinate system
-          //    double shift_x = points_x[i]-ref_x;
-          //    double shift_y = points_y[i]-ref_y;
-          //
-          //    points_x[i] = shift_x * cos(0-ref_yaw)- shift_y*sin(0-ref_yaw);
-          //    points_y[i] = shift_x * sin(0-ref_yaw)- shift_y*cos(0-ref_yaw);
-          //
-          //  }
-          //
-          //  std::cout << "Points_x: " << std::endl;
-          //  for (int j=0; j < points_x.size(); j++){
-          //    std::cout << points_x[j] << std::endl;
-          //  }
-          //  std::cout << std::endl << "Points_y: " << std::endl;
-          //  for (int j=0; j < points_y.size(); j++){
-          //    std::cout << points_y[j] << std::endl;
-          //  }
-          //
-          //  spline_path.set_points(points_x, points_y);
-          //
-          //  // Any points generated previously, add them to the new list of points
-          //  for(int i = 0; i < prev_size; i++){
-          //    next_x_vals.push_back(previous_path_x[i]);
-          //    next_y_vals.push_back(previous_path_y[i]);
-          //  }
-          //
-          //  double target_x = 30.0;
-          //  double target_y = spline_path(target_x);
-          //  double target_dist = sqrt(target_x * target_x + target_y * target_y);
-          //
-          //  double x_add_on = 0;
-          //
-          //  double ref_velocity = car_speed + speed_diff;
-          //
-          //  for(int i = 1; i<=50-prev_size; i++){
-          //    double n = target_dist/(delta_t*ref_velocity);
-          //    double x_point = x_add_on+(target_x)/n;
-          //    double y_point = spline_path(x_point);
-          //
-          //    x_add_on = x_point;
-          //
-          //    double x_ref = x_point;
-          //    double y_ref = y_point;
-          //
-          //    // Switch back to the map coordinate system
-          //    x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw)) + ref_x;
-          //    y_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw)) + ref_x;
-          //
-          //    next_x_vals.push_back(x_point);
-          //    next_y_vals.push_back(y_point);
-          //
-          //  }
-          //
-          //  std::cout << "next_x: " << std::endl;
-          //  for (int j=0; j < next_x_vals.size(); j++){
-          //    std::cout << next_x_vals[j] << std::endl;
-          //  }
-          //  std::cout << std::endl << "next_y: " << std::endl;
-          //  for (int j=0; j < next_y_vals.size(); j++){
-          //    std::cout << points_y[j] << std::endl;
-          //  }
-          //
-          // //next_x_vals.clear();
-          // //next_y_vals.clear();
-          // //double dist_inc = 0.5;
-          // //for (int i = 0; i < 50; ++i) {
-          //   //next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-          //   //next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-          // //}
-
-          vector<double> ptsx;
-          vector<double> ptsy;
+          vector<double> points_x;
+          vector<double> points_y;
 
           double ref_x = car_x;
           double ref_y = car_y;
           double ref_yaw = deg2rad(car_yaw);
 
-          // Do I have have previous points
+          // Check to see if enough previous points from a previous path are availble, if not generate points
           if (prev_size < 2) {
-              // if not too many previous points
+
               double prev_car_x = car_x - cos(car_yaw);
               double prev_car_y = car_y - sin(car_yaw);
 
-              ptsx.push_back(prev_car_x);
-              ptsx.push_back(car_x);
+              points_x.push_back(prev_car_x);
+              points_y.push_back(car_y);
 
-              ptsy.push_back(prev_car_y);
-              ptsy.push_back(car_y);
+              points_x.push_back(car_x);
+              points_y.push_back(prev_car_y);
+
+
           } else {
-              // Use the last two points.
               ref_x = previous_path_x[prev_size - 1];
               ref_y = previous_path_y[prev_size - 1];
 
@@ -521,81 +391,82 @@ int main() {
               double ref_y_prev = previous_path_y[prev_size - 2];
               ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
 
-              ptsx.push_back(ref_x_prev);
-              ptsx.push_back(ref_x);
+              points_x.push_back(ref_x_prev);
+              points_y.push_back(ref_y_prev);
 
-              ptsy.push_back(ref_y_prev);
-              ptsy.push_back(ref_y);
+              points_x.push_back(ref_x);
+              points_y.push_back(ref_y);
+
+
           }
 
-          // Setting up three target points in the future.
-          vector<double> next_wp0 = getXY(car_s + 30, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
-                                          map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 60, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
-                                          map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 90, 2 + 4 * desired_lane, map_waypoints_s, map_waypoints_x,
-                                          map_waypoints_y);
+          // Create new waypoints based using future coordinates
+          for (int j=0; j < 3; j++){
+            vector<double> gen_next_point = getXY(car_s + safe_lane_change_dist * (1+j), 0.5 * lane_width + lane_width * desired_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-          ptsx.push_back(next_wp0[0]);
-          ptsx.push_back(next_wp1[0]);
-          ptsx.push_back(next_wp2[0]);
-
-          ptsy.push_back(next_wp0[1]);
-          ptsy.push_back(next_wp1[1]);
-          ptsy.push_back(next_wp2[1]);
-
-          // Making coordinates to local car coordinates.
-          for (int i = 0; i < ptsx.size(); i++) {
-              double shift_x = ptsx[i] - ref_x;
-              double shift_y = ptsy[i] - ref_y;
-
-              ptsx[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
-              ptsy[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
+            points_x.push_back(gen_next_point[0]);
+            points_y.push_back(gen_next_point[1]);
           }
 
-          // Create the spline.
-          tk::spline s;
-          s.set_points(ptsx, ptsy); // using 2 previous points and 3 furture points to initialize the spline
+          // vector<double> gen_next_point_1 = getXY(car_s + safe_lane_change_dist, 0.5 * lane_width + lane_width * desired_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          // vector<double> gen_next_point_2 = getXY(car_s + safe_lane_change_dist * 2, 0.5 * lane_width + lane_width * desired_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          // vector<double> gen_next_point_3 = getXY(car_s + safe_lane_change_dist * 3, 0.5 * lane_width + lane_width * desired_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          //
+          // points_x.push_back(gen_next_point_1[0]);
+          // points_y.push_back(gen_next_point_1[1]);
+          //
+          // points_x.push_back(gen_next_point_2[0]);
+          // points_y.push_back(gen_next_point_2[1]);
+          //
+          // points_x.push_back(gen_next_point_3[0]);
+          // points_y.push_back(gen_next_point_3[1]);
 
-          // Output path points from previous path for continuity.
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          // Shift the coordinate with respect to the car instead of the map
+          for (int i = 0; i < points_x.size(); i++) {
+              double shift_x = points_x[i] - ref_x;
+              double shift_y = points_y[i] - ref_y;
+
+              points_x[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
+              points_y[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
+          }
+
+          // Utilize the cubic spline library to generate a smooth path to reduce jerk
+          tk::spline spline_path;
+          spline_path.set_points(points_x, points_y); // using 2 previous points and 3 furture points to initialize the spline
+
+          // Create vectors to store next path points to be sent to the simulation
+          vector<double> next_x_vals, next_y_vals;
+
           for (int i = 0; i < prev_size; i++) {
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
           }
 
-          // Calculate distance y position on 30 m ahead.
+          // Generate a path using the x_coordinates (relative to the car) up to 30 meters away
           double target_x = 30.0;
-          double target_y = s(target_x);
+          double target_y = spline_path(target_x);
           double target_dist = sqrt(target_x * target_x + target_y * target_y);
 
-          double x_add_on = 0;
+          double x_counter = 0;
 
-          double ref_vel = car_speed + speed_diff;
+          double set_velocity = car_speed + speed_diff;
 
           for (int i = 1; i < 50 - prev_size; i++) {
-              double N = target_dist / (0.02 * ref_vel / 2.24); // divided into N segments
-              double x_point = x_add_on + target_x / N;
-              double y_point = s(x_point); // To calculate distance y position .
+              double N = target_dist / (0.02 * set_velocity); // divided into N segments
+              double x_point = x_counter + target_x / N;
+              double y_point = spline_path(x_point); // To calculate distance y position .
 
-              x_add_on = x_point;
+              x_counter = x_point;
 
               double x_ref = x_point;
               double y_ref = y_point;
 
-              x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
-              y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
-
-              x_point += ref_x;
-              y_point += ref_y;
+              x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw)) + ref_x;
+              y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw)) + ref_y;
 
               next_x_vals.push_back(x_point);
               next_y_vals.push_back(y_point);
-
-
           }
-          json msgJson;
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
