@@ -38,11 +38,11 @@ int max_lane_num = 2; // On this highway, there are lanes 3 lanes, [0,1,2]
 double lane_width = 4.0; // Width of highway lane in meters
 
 double speed_limit_mph = 50; // Speed limit in MPH
-double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
-// double speed_limit = 50;
-double speed_limit_buffer = mph_to_m_s(1); // Buffer to ensure we do not accidentally exceed speed limit
+//double speed_limit = mph_to_m_s(speed_limit_mph); // Speed limit in m/s
+double speed_limit = 50;
+double speed_limit_buffer = 1; // Buffer to ensure we do not accidentally exceed speed limit
 double desired_speed = speed_limit - speed_limit_buffer;
-double max_speed_change = mph_to_m_s(1.6); // Do not accelerate too fast to try minimize jerk
+double max_speed_change = 3.2; // Do not accelerate too fast to try minimize jerk
 
 double safe_lane_change_dist = 30; // Distance away in meters cars in other lane should be to safely change lane
 
@@ -215,7 +215,6 @@ int main() {
 
            double delta_t = 0.02;
 
-           tk::spline spline_path;
            vector<double> x_path_points, y_path_points;
 
            double min_cost = 1;
@@ -234,6 +233,7 @@ int main() {
            double car_front_dist = 100;
            double car_left_front_dist = 100;
            double car_right_front_dist = 100;
+           double car_front_speed = 100;
            bool car_on_left = false;
            bool car_on_right = false;
 
@@ -254,6 +254,12 @@ int main() {
              auto car_i_data = sensor_fusion[i];
              double car_i_s = car_i_data[5];
              double car_i_d = car_i_data[6];
+             
+             double car_vel_x = car_i_data[3];
+             double car_vel_y = car_i_data[4];
+             
+             double car_i_speed = sqrt(car_vel_x * car_vel_x + car_vel_y * car_vel_y ) * 2.24;
+             
              int car_i_lane_num = car_i_d / lane_width;
              double dist_from_car_i = car_i_s - car_s;
              bool car_i_in_front = false;
@@ -264,6 +270,8 @@ int main() {
 
              if (car_i_lane_num == current_lane && car_i_in_front && car_front_dist > dist_from_car_i){ // Check if car is in same lane, in front
                car_front_dist = dist_from_car_i;
+               car_front_speed = car_i_speed;
+               
              }
 
              if (car_i_lane_num == current_lane - 1){ // Car is in lane to left of us
@@ -302,6 +310,7 @@ int main() {
            std::cout << std::endl;
 
            std::cout << "Car Front Dist: " << car_front_dist << std::endl;
+          std::cout << "Car Front Speed: " << car_front_speed << std::endl;
            std::cout << "Car Front Left Dist: " << car_left_front_dist << std::endl;
            std::cout << "Car Front Right Dist: " << car_right_front_dist << std::endl;
            std::cout << "Car On Left: " << car_on_left << std::endl;
@@ -327,7 +336,7 @@ int main() {
 
            if (decision == 0) { // Continue straight in lane
              desired_lane = current_lane;
-             if (car_speed < desired_speed){ // Increase speed if not going at desired speed
+             if (car_speed < desired_speed - speed_limit_buffer && car_front_speed > car_speed + 2){ // Increase speed if not going at desired speed and car in front not going slow
                speed_diff += max_speed_change;
                if (speed_diff + car_speed > desired_speed){
                  speed_diff = desired_speed - car_speed;
@@ -450,9 +459,12 @@ int main() {
           double x_counter = 0;
 
           double set_velocity = car_speed + speed_diff;
+          
+          int num_points_needed = 50-prev_size;
 
-          for (int i = 1; i < 50 - prev_size; i++) {
-              double N = target_dist / (0.02 * set_velocity); // divided into N segments
+          for (int i = 1; i < num_points_needed; i++) {
+              //double N = target_dist / (0.02 * set_velocity / 2.24); // divided into N segments
+              double N = target_dist / (0.02 * (car_speed + (1-i/num_points_needed) * speed_diff) / 2.24);
               double x_point = x_counter + target_x / N;
               double y_point = spline_path(x_point); // To calculate distance y position .
 
