@@ -4,6 +4,8 @@ This is the path planning project associated with the Udacity Self Driving Car E
 ### Goals
 The goal of this project is to implement Path Planning and Behavior Planning algorithms to safely navigate around a highway in a virtual simulation. One of the challenges of this simulation is that it includes other cars on the highway, which drive at varying speeds and change lanes. There is also a imposed speed limit of 22.35 meters/sec (50 MPH) which is not to be exceeded, and any jerk from the car suddenly accelerating should be minimized (should not exceed acceleration over 10 meters/sec^2, or jerk over 10 meters/sec^3). A map of the highway is provided in the from of a csv file which contains the x and y position of the highway which it wants to navigate to. It also converts these coordinates to the s and d coordinate system for classifying position on a road. The highway is 6946 meters (~4.32 miles) long.
 
+![simulation gif](images/simulation.gif)
+
 ### Highway Map
 The map of the highway is a csv file in data/highway_map.txt. Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
 
@@ -32,23 +34,22 @@ There are a couple things to make sure our autonomous car considers when driving
 | Attribute | Cost Determination  |
 |:-:|-|
 | Speed  | Cost increases if going too slow, or too fast (relative to speed limit), also depends on speed of car in front |
-| Staying in Lane | Cost increases if we are not centered in our lane |
+| Staying in Lane | Cost increases if we are not centered in our lane, this is attributed in the simulation by using the map coordinates to find the middle of the lane and pass it to our trajectory generator |
 | Changing Lane | Cost decreases if car in front is going slow, goal distance is far, and lane to merge in is clear. Broken up into individual left and right turn cost |
-|  | |
-|  | |
 
 
 ### Trajectory Generation
 
-##### Hybrid A*
+##### Frenet Coordinates
+For this project, we are given a known map with the x and y coordinate locations of the road. Even better, the map also translates those x and y coordinates into Frenet, s and d, coordinates. The s coordinate symbolizes the length of road which you are traveling along, while the d coordinate keeps track of the distance with respect to the center lane line. This simplifies classifying the position of the car with respect to the road, rather than some arbitrary x,y map coordinates.
 
-##### Fernet Coordinates
+![simulation gif](images/udacity_frenet_coordinates.png)
+
+Image above sourced from the Udacity Self Driving Car Engineer classroom.
 
 ##### Jerk Minimization
 
-##### Polynomial Trajectory Generation
-
-
+Being that self driving cars are usually encompassing human passengers, we want to ensure they are comfortable whenever the car changes position or speed. Essentially we want to minimize the change in acceleration, which is known as jerk. Sudden accelerations cause high jerk, which can cause discomfort for the passenger. To ensure jerk is minimized along our generated trajectory, two things are done. The first is ensuring the car does not accelerate (or decelerate) too fast. The second is to incorporate a "smooth", continuous path of points which make up our trajectory. This smooth path is achieved in this project by generating a spline (aka, a smoothly interpolated line). This prevents sudden changes in the car's yaw position when changing lanes or if the road curves.
 
 ## Other Background Information:
 
